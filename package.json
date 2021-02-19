@@ -4,7 +4,7 @@
   "description": "Azərbaycan üzrə COVID-19 koronavirusunun gündəlik statistikasını əks etdirən bot",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js"
   },
   "repository": {
     "type": "git",
