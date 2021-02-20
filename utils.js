@@ -60,7 +60,9 @@ const downloadPdf = (day, ctx, data, pool, type) => {
                     fs.existsSync(`${day}.pdf`) && fs.unlinkSync(`${day}.pdf`)
                     fs.existsSync('output.png') && fs.unlinkSync('output.png');
                 }) : null
-                type === 'extended' ? ctx.replyWithPhoto(url, { caption: `${data.message}${data.additionalData}#koronavirus` }) : ctx.replyWithPhoto(url, { caption: `${data.message}#koronavirus` });
+                setTimeout(() => {
+                    type === 'extended' ? ctx.replyWithPhoto(url, { caption: `${data.message}${data.additionalData}#koronavirus` }) : ctx.replyWithPhoto(url, { caption: `${data.message}#koronavirus` });
+                }, 1000);
             });
         })
     });
