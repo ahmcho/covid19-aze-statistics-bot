@@ -3,8 +3,8 @@
 # dependencies
 /node_modules
 
-.pdf
-.png
+*.pdf
+*.png
 /png-output
 # misc
 .env
