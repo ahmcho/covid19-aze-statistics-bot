@@ -5,6 +5,7 @@
 
 *.pdf
 *.png
+playground.js
 /png-output
 # misc
 .env

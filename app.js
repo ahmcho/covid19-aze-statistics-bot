@@ -13,10 +13,10 @@ const expressApp = express();
 //Defining app constants
 const PORT = process.env.PORT || 5000;
 const URL = process.env.HEROKU_URL;
-const today = moment().format("DD.MM.YYYY");
-const sqlToday = moment().format('YYYY-MM-DD');
-const yesterday = moment().subtract(1,'days').format("DD.MM.YYYY");
-const sqlYesterday = moment().subtract(1,'days').format('YYYY-MM-DD')
+const today = moment().subtract(1,'days').format("DD.MM.YYYY");
+const sqlToday = moment().subtract(1,'days').format('YYYY-MM-DD');
+const yesterday = moment().subtract(2,'days').format("DD.MM.YYYY");
+const sqlYesterday = moment().subtract(2,'days').format('YYYY-MM-DD')
 
 //Setting up the database 
 const pool = mysql.createPool({
