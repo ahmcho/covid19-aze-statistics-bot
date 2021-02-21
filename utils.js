@@ -52,7 +52,7 @@ const downloadPdf = (day, ctx, data, pool, type) => {
             };
             axios.post("https://telegra.ph/upload", formData, {headers}).then((result) => {
                 url = `https://telegra.ph${result.data[0].src}`;
-                pool ? pool.query(process.env.QUERY_UPDATE_COVID_DATA, [url,data.message || typeof data === 'string' && data]
+                pool ? pool.query(process.env.QUERY_UPDATE_COVID_DATA, [url,data.message]
                     , (error,results, fields) => {
                     if (error) {
                         throw error;
