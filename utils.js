@@ -58,7 +58,7 @@ const downloadPdf = (day, ctx, data, pool, type) => {
                         throw error;
                     }
                     setTimeout(() => {
-                        type === 'extended' ? ctx.replyWithPhoto(url, { caption: `${data.message}${data.additionalData}#koronavirus` }) : ctx.replyWithPhoto(url, { caption: `${data.message}#koronavirus` });
+                        type === 'extended' ? ctx.replyWithPhoto({source: './output.png'}, { caption: `${data.message}${data.additionalData}#koronavirus` }) : ctx.replyWithPhoto({source: './output.png'}, { caption: `${data.message}#koronavirus` });
                     },1000);
                 }) : null
             });
