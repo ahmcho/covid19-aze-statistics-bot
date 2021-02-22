@@ -96,7 +96,7 @@ bot.hears('🗒️ Qısa məlumat', async(ctx) => {
                         const messageObj = buildMessageFromResponse(responseYesterday, true);
                         downloadPdf(yesterday, ctx, messageObj,pool, 'simple');
                         pool.query(process.env.QUERY_ADD_COVID_DATA, {
-                            pdf_link: `https://koronavirusinfo.az/files/3/tab_${responseYesterday}.pdf`,
+                            pdf_link: `https://koronavirusinfo.az/files/3/tab_${yesterday}.pdf`,
                             date: sqlYesterday,
                             message: messageObj.message,
                             additional_data: messageObj.additionalData,
@@ -153,7 +153,7 @@ bot.hears('📚 Ətraflı məlumat', async(ctx) => {
                         const messageObj = buildMessageFromResponse(responseYesterday, true);
                         downloadPdf(yesterday, ctx, messageObj, pool, 'extended');
                         pool.query(process.env.QUERY_ADD_COVID_DATA, {
-                            pdf_link: `https://koronavirusinfo.az/files/3/tab_${responseYesterday}.pdf`,
+                            pdf_link: `https://koronavirusinfo.az/files/3/tab_${yesterday}.pdf`,
                             date: sqlYesterday,
                             message: messageObj.message,
                             additional_data: messageObj.additionalData,
