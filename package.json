@@ -26,7 +26,6 @@
   "homepage": "https://github.com/ahmcho/covid19-aze-statistics-bot#readme",
   "dependencies": {
     "axios": "^0.21.1",
-    "cloudmersive-convert-api-client": "^2.6.3",
     "crawler-request": "^1.2.2",
     "dotenv": "^8.2.0",
     "download-pdf": "^0.1.6",
