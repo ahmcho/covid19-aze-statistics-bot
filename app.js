@@ -42,18 +42,11 @@ expressApp.listen(PORT, () => {
 
 // Starting work with bot
 bot.start((ctx) => {
+    console.log(ctx.message.chat)
 	const {username, first_name, last_name, id } = ctx.message.chat;
-	let message = `Salam,`;
-	username ? message += `${username}! ` : `${first_name} ${last_name}! `;
-	message += "Bu bot vasitəsilə siz Azərbaycan üzrə COVID-19 koronavirusunun statistikasını öyrənə bilərsiz!"
-	ctx.telegram.sendMessage(id, message, Markup
-        .keyboard([
-          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
-        ])
-        .resize()
-    );
-	pool.query(process.env.QUERY_ALL_USERS, [id], (error, results, fields) => {
+    pool.query(process.env.QUERY_ALL_USERS, id, (error, results, fields) => {
 		if(error) throw error;
+        console.log(results);
 		if(results.length === 0){
 			//Add user to db
 			pool.query(process.env.QUERY_ADD_USER, {user_id: id, first_name, last_name, username: username ? username : ''}, (error,results, fields) => {
@@ -64,6 +57,16 @@ bot.start((ctx) => {
 			})
 		}
 	})
+	let message = `Salam,`;
+	username ? message += `${username}! ` : `${first_name} ${last_name}! `;
+	message += "Bu bot vasitəsilə siz Azərbaycan üzrə COVID-19 koronavirusunun statistikasını öyrənə bilərsiz!"
+	ctx.telegram.sendMessage(id, message, Markup
+        .keyboard([
+          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+        ])
+        .resize()
+    );
+	
 });
 
 bot.help((ctx) => {
