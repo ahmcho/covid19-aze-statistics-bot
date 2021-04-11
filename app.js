@@ -5,18 +5,16 @@ const { Telegraf, Markup } = require('telegraf')
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const moment = require('moment');
 const mysql = require('mysql');
-const crawler = require('crawler-request');
 const express = require('express');
-const {buildMessageFromResponse, downloadPdf} = require('./utils');
 const expressApp = express();
+const axios = require('axios');
 
 //Defining app constants
 const PORT = process.env.PORT || 5000;
 const URL = process.env.HEROKU_URL;
 const today = moment().format("DD.MM.YYYY");
-const sqlToday = moment().format('YYYY-MM-DD');
 const yesterday = moment().subtract(1,'days').format("DD.MM.YYYY");
-const sqlYesterday = moment().subtract(1,'days').format('YYYY-MM-DD')
+
 
 //Setting up the database 
 const pool = mysql.createPool({
@@ -25,11 +23,16 @@ const pool = mysql.createPool({
 	user     : process.env.MYSQL_USER,
 	password : process.env.MYSQL_PASSWORD,
 	database : process.env.MYSQL_DB,
-    charset: "utf8mb4"
+  charset: "utf8mb4_unicode_ci",
+  collate: 'utf8mb4_unicode_ci'
+});
+
+pool.on('connection', function (connection) {
+  connection.query("SET NAMES 'utf8mb4'");
 });
 
 //Setting up express and telegraf
-expressApp.use(bot.webhookCallback('/bot'));
+//expressApp.use(bot.webhookCallback('/bot'));
 bot.telegram.setWebhook(`${URL}/bot`);
 
 expressApp.get('/', (req, res) => {
@@ -42,150 +45,129 @@ expressApp.listen(PORT, () => {
 
 // Starting work with bot
 bot.start((ctx) => {
-    console.log(ctx.message.chat)
-	const {username, first_name, last_name, id } = ctx.message.chat;
-    pool.query(process.env.QUERY_ALL_USERS, id, (error, results, fields) => {
-		if(error) throw error;
-        console.log(results);
-		if(results.length === 0){
-			//Add user to db
-			pool.query(process.env.QUERY_ADD_USER, {user_id: id, first_name, last_name, username: username ? username : ''}, (error,results, fields) => {
-				if (error) throw error;
-			})
+  const {username, first_name, last_name, id } = ctx.message.chat;
+  pool.query(process.env.QUERY_ALL_USERS, id, (error, results, fields) => {
+    if(error) throw error;
+    if(results.length === 0){
+      //Add user to db
+      pool.query(process.env.QUERY_ADD_USER, { user_id: id, first_name, last_name: last_name ? last_name: '', username: username ? username : ''}, (error,results, fields) => {
+        if (error) throw error;
+      })
+            //Add statistics
             pool.query(process.env.QUERY_ADD_USER_STATS, {user_id: id}, (error,results, fields) => {
-				if (error) throw error;
-			})
-		}
-	})
-	let message = `Salam,`;
-	username ? message += `${username}! ` : `${first_name} ${last_name}! `;
-	message += "Bu bot vasitəsilə siz Azərbaycan üzrə COVID-19 koronavirusunun statistikasını öyrənə bilərsiz!"
+        if (error) throw error;
+      })
+    }
+  })
+	let message = "Salam, bu bot vasitəsilə siz Azərbaycan üzrə COVID-19 koronavirusunun statistikasını öyrənə bilərsiz!"
 	ctx.telegram.sendMessage(id, message, Markup
-        .keyboard([
-          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
-        ])
-        .resize()
-    );
+      .keyboard([
+        ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+      ])
+      .resize()
+  );
 	
 });
 
 bot.help((ctx) => {
-    ctx.reply(`1. Bot Sizə seçiminizə uyğun günün COVID-19 🦠 koronavirusunun Azərbaycan 🇦🇿 üzrə statistikasını göndərir.\n2. Əgər bugünün məlumatları hələ açıqlanmayıbsa, bot bunu sizə bilidərəcək və dünənin məlumatlarını göndərəcək.\n3. Bot bütün məlumatları https://koronavirusinfo.az/ saytından əldə edir.\n4. Başqa ölkələr üçün məlumatları öyrənmək istəyirsizsə @CoronavirusCases_Bot botuna müraciət edə bilərsiz.`);
+  ctx.reply(`1. Bot Sizə seçiminizə uyğun günün COVID-19 🦠 koronavirusunun Azərbaycan 🇦🇿 üzrə statistikasını göndərir.\n2. Əgər bugünün məlumatları hələ açıqlanmayıbsa, bot bunu sizə bilidərəcək və dünənin məlumatlarını göndərəcək.\n3. Bot bütün məlumatları https://koronavirusinfo.az/ saytından əldə edir.\n`, Markup
+    .keyboard([
+      ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+    ]).resize()
+  )
 });
 
 bot.hears('🗒️ Qısa məlumat', async(ctx) => {
-    const { id } = ctx.message.chat;
-    //Send statistics to db
-    pool.query(process.env.QUERY_UPDATE_USER_STATS_SIMPLE, [1, id], (error, results, fields) => {
-		if(error) throw error;
-	})
-    //Check if there is data for today
-    pool.query(process.env.QUERY_GET_COVID_DATA, [sqlToday], async (error, results, fields) => {
-        if(error) throw error;
-        if(results.length === 0){
-            const responseToday = await crawler(`https://koronavirusinfo.az/files/3/tab_${today}.pdf`);
-            if(responseToday.status === 404){
-                // Send a message to user that todays data is not available yet
-                ctx.telegram.sendMessage(id, 'Bugünün məlumatları, təəssüf ki, hələ açıqlanmayıb. Dünənin məlumatları göndərilir.')
-                //Check for yesterday data 
-                pool.query(process.env.QUERY_GET_COVID_DATA, [sqlYesterday], async (error, results, fields) => {
-                    if (error) throw error;
-                    if(results.length !== 0){
-                        //Send yesterday data
-                        ctx.replyWithPhoto(results[0].img_link, { caption: `${results[0].message}#koronavirus` });
-                    } else {
-                        //Get yesterday data and add it to db
-                        const responseYesterday = await crawler(`https://koronavirusinfo.az/files/3/tab_${yesterday}.pdf`);
-                        const messageObj = buildMessageFromResponse(responseYesterday, true);
-                        downloadPdf(yesterday, ctx, messageObj,pool, 'simple');
-                        pool.query(process.env.QUERY_ADD_COVID_DATA, {
-                            pdf_link: `https://koronavirusinfo.az/files/3/tab_${yesterday}.pdf`,
-                            date: sqlYesterday,
-                            message: messageObj.message,
-                            additional_data: messageObj.additionalData,
-                        }, (error,results, fields) => {
-                            if (error) {
-                                throw error;
-                            }	
-                        });	
-                    }
-                });
-            } else {
-                const messageObj = buildMessageFromResponse(responseToday, true);
-                downloadPdf(today, ctx, messageObj, pool, 'simple');
-                //Add today data to db
-                pool.query(process.env.QUERY_ADD_COVID_DATA, {
-                    pdf_link: `https://koronavirusinfo.az/files/3/tab_${today}.pdf`,
-                    date: sqlToday,
-                    message: messageObj.message,
-                    additional_data: messageObj.additionalData,
-                }, (error,results, fields) => {
-                    if (error) {
-                        throw error;
-                    }
-                })
-            }
-        } else {
-            ctx.replyWithPhoto(results[0].img_link, { caption: `${results[0].message}#koronavirus` });
-        }
-    });
+  const {username, first_name, last_name, id } = ctx.message.chat;
+  console.log(`${ctx.message.chat.first_name} ${ctx.message.chat.last_name ? ctx.message.chat.last_name: ''} clicked on ${ctx.match[0]}`);
+  
+  pool.query(process.env.QUERY_ALL_USERS, id, (error, results, fields) => {
+    if(error) throw error;
+    if(results.length === 0){
+      //Add user to db
+      pool.query(process.env.QUERY_ADD_USER, { user_id: id, first_name, last_name: last_name ? last_name : '', username: username ? username : ''}, (error,results, fields) => {
+        if (error) throw error;
+      })
+      //Add statistics
+      pool.query(process.env.QUERY_ADD_USER_STATS, {user_id: id}, (error,results, fields) => {
+        if (error) throw error;
+      })
+    }
+  })
+
+  //Send statistics to db
+  pool.query(process.env.QUERY_UPDATE_USER_STATS_SIMPLE, [1, id], (error, results, fields) => {
+    if(error) throw error;
+  });
+  
+  const responseForToday = await axios.get('https://covid19aze.live/api/cases/');
+  let jsonDataForToday = responseForToday.data;
+  if(jsonDataForToday.message === 'No data for this date yet'){
+      ctx.telegram.sendMessage(id, 'Bugünün məlumatları, təəssüf ki, hələ açıqlanmayıb. Dünənin məlumatları göndərilir.', Markup
+      .keyboard([
+        ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+      ]).resize());
+      const responseForYesterday = await axios.get(`https://covid19aze.live/api/cases/${yesterday}`);
+      let jsonDataForYesterday = responseForYesterday.data;
+      let responseForImage = await axios.get(`https://covid19aze.live/api/gri/${yesterday}`);
+      let imageLink = responseForImage.data;
+      ctx.replyWithPhoto({url : imageLink}, { caption: `🇦🇿🦠 Azərbaycanda ötən gün ərzində (${yesterday})\n${jsonDataForYesterday.infected_today} yeni koronavirusa yoluxma faktı qeydə alınıb.\n${jsonDataForYesterday.deaths_today} nəfər ölüb, ${jsonDataForYesterday.recovered_today} nəfər isə müalicə olunaraq evə buraxılıb.\n#koronavirus` }, Markup
+      .keyboard([
+        ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+      ]).resize());
+  } else {
+      let responseForImage = await axios.get(`https://covid19aze.live/api/gri/${today}`);
+      let imageLink = responseForImage.data;
+      ctx.replyWithPhoto({url: imageLink}, { caption: `🇦🇿🦠 Azərbaycanda bu günə (${today})\n${jsonDataForToday.infected_today} yeni koronavirusa yoluxma faktı qeydə alınıb.\n${jsonDataForToday.deaths_today} nəfər ölüb, ${jsonDataForToday.recovered_today} nəfər isə müalicə olunaraq evə buraxılıb.\n#koronavirus` },Markup
+        .keyboard([
+          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+        ]).resize()
+      );
+  }
 });
 bot.hears('📚 Ətraflı məlumat', async(ctx) => {
-    const { id } = ctx.message.chat;
+  const {username, first_name, last_name, id } = ctx.message.chat;
+    console.log(`${first_name} ${last_name ? last_name: ''} clicked on ${ctx.match[0]}`);
+    pool.query(process.env.QUERY_ALL_USERS, id, (error, results, fields) => {
+      if(error) throw error;
+      if(results.length === 0){
+        //Add user to db
+        pool.query(process.env.QUERY_ADD_USER, { user_id: id, first_name, last_name: last_name ? last_name : '', username: username ? username : ''}, (error,results, fields) => {
+          if (error) throw error;
+        })
+              //Add statistics
+        pool.query(process.env.QUERY_ADD_USER_STATS, {user_id: id}, (error,results, fields) => {
+          if (error) throw error;
+        })
+      }
+	  })
     //Send statistics to db
     pool.query(process.env.QUERY_UPDATE_USER_STATS_EXTENDED, [1, id], (error, results, fields) => {
-		if(error) throw error;
-	})
-    //Check if there is data for today
-    pool.query(process.env.QUERY_GET_COVID_DATA, [sqlToday], async (error, results, fields) => {
-        if(error) throw error;
-        if(results.length === 0){
-            const responseToday = await crawler(`https://koronavirusinfo.az/files/3/tab_${today}.pdf`);
-            if(responseToday.status === 404){
-                // Send a message to user that todays data is not available yet
-                ctx.telegram.sendMessage(id, 'Bugünün məlumatları, təəssüf ki, hələ açıqlanmayıb. Dünənin məlumatları göndərilir.')
-                //Check for yesterday data 
-                pool.query(process.env.QUERY_GET_COVID_DATA, [sqlYesterday], async (error, results, fields) => {
-                    if (error) throw error;
-                    if(results.length !== 0){
-                        //Send yesterday data
-                        ctx.replyWithPhoto(results[0].img_link, { caption: `${results[0].message}${results[0].additional_data}#koronavirus` });
-                    } else {
-                        //Get yesterday data and add it to db
-                        const responseYesterday = await crawler(`https://koronavirusinfo.az/files/3/tab_${yesterday}.pdf`);
-                        const messageObj = buildMessageFromResponse(responseYesterday, true);
-                        downloadPdf(yesterday, ctx, messageObj, pool, 'extended');
-                        pool.query(process.env.QUERY_ADD_COVID_DATA, {
-                            pdf_link: `https://koronavirusinfo.az/files/3/tab_${yesterday}.pdf`,
-                            date: sqlYesterday,
-                            message: messageObj.message,
-                            additional_data: messageObj.additionalData,
-                        }, (error,results, fields) => {
-                            if (error) {
-                                throw error;
-                            }	
-                        });	
-                    }
-                });
-            } else {
-                const messageObj = buildMessageFromResponse(responseToday, true);
-                downloadPdf(today, ctx, messageObj, pool, 'extended');
-                //Add today data to db
-                pool.query(process.env.QUERY_ADD_COVID_DATA, {
-                    pdf_link: `https://koronavirusinfo.az/files/3/tab_${today}.pdf`,
-                    date: sqlToday,
-                    message: messageObj.message,
-                    additional_data: messageObj.additionalData,
-                }, (error,results, fields) => {
-                    if (error) {
-                        throw error;
-                    }
-                })
-            }
-        } else {
-            ctx.replyWithPhoto(results[0].img_link, { caption: `${results[0].message}${results[0].additional_data}#koronavirus` });
-        }
-    });
+		  if(error) throw error;
+	  })
+    const responseForToday = await axios.get('https://covid19aze.live/api/cases/');
+    let jsonDataForToday = responseForToday.data;
+    if(jsonDataForToday.message === 'No data for this date yet'){
+        ctx.telegram.sendMessage(id, 'Bugünün məlumatları, təəssüf ki, hələ açıqlanmayıb. Dünənin məlumatları göndərilir.',Markup
+        .keyboard([
+          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+        ]).resize());
+        const responseForYesterday = await axios.get(`https://covid19aze.live/api/cases/${yesterday}`);
+        let jsonDataForYesterday = responseForYesterday.data;
+        let responseForImage = await axios.get(`htttps://covid19aze.live/api/gri/${yesterday}`);
+        let imageLink = responseForImage.data;
+        ctx.replyWithPhoto({url: imageLink}, { caption: `🇦🇿🦠 Azərbaycanda ötən gün ərzində (${yesterday})\n${jsonDataForYesterday.infected_today} yeni koronavirusa yoluxma faktı qeydə alınıb.\n${jsonDataForYesterday.deaths_today} nəfər ölüb, ${jsonDataForYesterday.recovered_today} nəfər isə müalicə olunaraq evə buraxılıb.\nÜmumi yoluxanların sayı: ${jsonDataForYesterday.infected_all}\nÜmumi sağalanların sayı: ${jsonDataForYesterday.recovered_all}\nAktiv xəstə sayı: ${jsonDataForYesterday.active_cases}\nBügünkü test sayı: ${jsonDataForYesterday.tests_today}\nÜmumi test sayı: ${jsonDataForYesterday.tests_all}\nÜmumi ölüm sayı: ${jsonDataForYesterday.deaths_all}\n#koronavirus` }, Markup
+        .keyboard([
+          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+        ]).resize());
+    } else {
+        let responseForImage = await axios.get(`https://covid19aze.live/api/gri/${today}`);
+        let imageLink = responseForImage.data;
+        ctx.replyWithPhoto({url: imageLink}, { caption: `🇦🇿🦠 Azərbaycanda bu günə (${today})\n${jsonDataForToday.infected_today} yeni koronavirusa yoluxma faktı qeydə alınıb.\n${jsonDataForToday.deaths_today} nəfər ölüb, ${jsonDataForToday.recovered_today} nəfər isə müalicə olunaraq evə buraxılıb.\nÜmumi yoluxanların sayı: ${jsonDataForToday.infected_all}\nÜmumi sağalanların sayı: ${jsonDataForToday.recovered_all}\nAktiv xəstə sayı: ${jsonDataForToday.active_cases}\nBügünkü test sayı: ${jsonDataForToday.tests_today}\nÜmumi test sayı: ${jsonDataForToday.tests_all}\nÜmumi ölüm sayı: ${jsonDataForToday.deaths_all}\n#koronavirus` },Markup
+        .keyboard([
+          ['🗒️ Qısa məlumat', '📚 Ətraflı məlumat'],
+        ]).resize());
+    }
 });
 
 bot.action(/.+/, (ctx) => {

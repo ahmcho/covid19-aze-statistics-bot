@@ -26,11 +26,8 @@
   "homepage": "https://github.com/ahmcho/covid19-aze-statistics-bot#readme",
   "dependencies": {
     "axios": "^0.21.1",
-    "crawler-request": "^1.2.2",
     "dotenv": "^8.2.0",
-    "download-pdf": "^0.1.6",
     "express": "^4.17.1",
-    "form-data": "^4.0.0",
     "moment": "^2.29.1",
     "mysql": "^2.18.1",
     "telegraf": "^4.0.3"
